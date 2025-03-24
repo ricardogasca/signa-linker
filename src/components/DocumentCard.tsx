@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileText, Link, Mail, Clock, Check } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export interface DocumentCardProps {
   id: string;
@@ -23,6 +24,9 @@ export interface DocumentCardProps {
   };
   onView: (id: string) => void;
   onSendLink?: (id: string) => void;
+  isSelected?: boolean;
+  onSelect?: () => void;
+  selectable?: boolean;
 }
 
 const statusConfig = {
@@ -55,7 +59,10 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
   status,
   recipient,
   onView,
-  onSendLink
+  onSendLink,
+  isSelected,
+  onSelect,
+  selectable
 }) => {
   const { label, color, icon: StatusIcon } = statusConfig[status];
   
@@ -63,6 +70,15 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
     <Card className="overflow-hidden transition-all-smooth hover:shadow-md">
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start">
+          {selectable && (
+            <div className="flex items-center mr-2">
+              <Checkbox 
+                checked={isSelected} 
+                onCheckedChange={onSelect}
+                className="mr-2"
+              />
+            </div>
+          )}
           <CardTitle className="text-base font-medium truncate" title={title}>
             {title}
           </CardTitle>

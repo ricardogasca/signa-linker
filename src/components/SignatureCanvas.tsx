@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Trash2, Download, Upload } from 'lucide-react';
+import { Trash2, Download, Upload, Check } from 'lucide-react';
 
 interface SignatureCanvasProps {
   onSave: (signature: string, type: 'draw' | 'type' | 'upload', name: string) => void;
@@ -49,12 +49,17 @@ const SignatureCanvas: React.FC<SignatureCanvasProps> = ({ onSave }) => {
     setIsDrawing(true);
     
     const rect = canvas.getBoundingClientRect();
-    const x = e instanceof MouseEvent 
-      ? e.clientX - rect.left 
-      : e.touches[0].clientX - rect.left;
-    const y = e instanceof MouseEvent 
-      ? e.clientY - rect.top 
-      : e.touches[0].clientY - rect.top;
+    let x, y;
+    
+    if ('touches' in e) {
+      // Touch event
+      x = e.touches[0].clientX - rect.left;
+      y = e.touches[0].clientY - rect.top;
+    } else {
+      // Mouse event
+      x = e.clientX - rect.left;
+      y = e.clientY - rect.top;
+    }
     
     context.beginPath();
     context.moveTo(x, y);
@@ -70,12 +75,17 @@ const SignatureCanvas: React.FC<SignatureCanvasProps> = ({ onSave }) => {
     if (!context) return;
     
     const rect = canvas.getBoundingClientRect();
-    const x = e instanceof MouseEvent 
-      ? e.clientX - rect.left 
-      : e.touches[0].clientX - rect.left;
-    const y = e instanceof MouseEvent 
-      ? e.clientY - rect.top 
-      : e.touches[0].clientY - rect.top;
+    let x, y;
+    
+    if ('touches' in e) {
+      // Touch event
+      x = e.touches[0].clientX - rect.left;
+      y = e.touches[0].clientY - rect.top;
+    } else {
+      // Mouse event
+      x = e.clientX - rect.left;
+      y = e.clientY - rect.top;
+    }
     
     context.lineTo(x, y);
     context.stroke();

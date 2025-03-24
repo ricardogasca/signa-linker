@@ -15,12 +15,13 @@ import Footer from '@/components/Footer';
 import DocumentViewer from '@/components/DocumentViewer';
 import { useDocuments } from '@/context/DocumentContext';
 import { formatDate } from '@/utils/documentUtils';
+import SignedDocumentsTable from '@/components/SignedDocumentsTable';
 
 const DocumentView = () => {
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [signingInProgress, setSigningInProgress] = useState(false);
-  const { getDocument, updateDocument, markAsSigned } = useDocuments();
+  const { getDocument, updateDocument, markAsSigned, documents } = useDocuments();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -35,7 +36,7 @@ const DocumentView = () => {
       if (id && document && document.status === 'sent') {
         updateDocument(id, { status: 'viewed' });
       }
-    }, 1500);
+    }, 1000);
     
     return () => clearTimeout(timer);
   }, [id, document, updateDocument]);
@@ -51,7 +52,7 @@ const DocumentView = () => {
     
     try {
       // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Update document with signature
       markAsSigned(id, signatureData, signatureType, name);
@@ -60,9 +61,6 @@ const DocumentView = () => {
         title: "Document signed successfully",
         description: "Your signature has been securely recorded.",
       });
-      
-      // Redirect to success page or stay on the same page
-      // For this demo, we'll stay on the same page
     } catch (error) {
       toast({
         title: "Signing failed",
@@ -149,6 +147,15 @@ const DocumentView = () => {
               loading={signingInProgress}
             />
           )}
+          
+          {/* Signed Documents Table */}
+          <div className="mt-12">
+            <h2 className="text-2xl font-semibold mb-6">Signed Documents</h2>
+            <SignedDocumentsTable 
+              documents={documents}
+              onViewDocument={(docId) => navigate(`/view/${docId}`)}
+            />
+          </div>
         </div>
       </main>
       

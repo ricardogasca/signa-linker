@@ -12,6 +12,7 @@ import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/AdminDashboard";
 import DocumentUpload from "./pages/DocumentUpload";
 import DocumentView from "./pages/DocumentView";
+import RecipientView from "./pages/RecipientView";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/upload" element={<DocumentUpload />} />
             <Route path="/view/:id" element={<DocumentView />} />
+            <Route path="/sign/:id" element={<RecipientView />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

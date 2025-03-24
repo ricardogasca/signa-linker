@@ -11,6 +11,7 @@ export interface Document {
   recipient?: {
     name: string;
     email: string;
+    recipientId?: string; // This will be used for grouping documents for one recipient
   };
   signature?: {
     data: string;
@@ -27,8 +28,9 @@ interface DocumentContextType {
   error: string | null;
   addDocument: (document: Omit<Document, 'id' | 'uploaded'>) => void;
   getDocument: (id: string) => Document | undefined;
+  getMultipleDocumentsForRecipient: (recipientId: string) => Document[];
   updateDocument: (id: string, updates: Partial<Document>) => void;
-  sendSignatureLink: (id: string, email: string, name: string) => void;
+  sendSignatureLink: (ids: string[], email: string, name: string) => string;
   markAsSigned: (id: string, signatureData: string, signatureType: 'draw' | 'type' | 'upload', name: string) => void;
 }
 
@@ -52,7 +54,8 @@ const sampleDocuments: Document[] = [
     status: 'sent',
     recipient: {
       name: 'John Smith',
-      email: 'john.smith@example.com'
+      email: 'john.smith@example.com',
+      recipientId: '1234'
     }
   },
   {
@@ -63,13 +66,32 @@ const sampleDocuments: Document[] = [
     status: 'signed',
     recipient: {
       name: 'Sarah Johnson',
-      email: 'sarah.j@example.com'
+      email: 'sarah.j@example.com',
+      recipientId: '5678'
     },
     signature: {
       data: 'data:image/png;base64,...',
       type: 'draw',
       name: 'Sarah Johnson',
       timestamp: '2023-05-29T11:42:00Z'
+    }
+  },
+  {
+    id: '4',
+    title: 'Benefits Summary.pdf',
+    url: '/sample-benefits.pdf',
+    uploaded: '2023-05-28T09:20:00Z', 
+    status: 'signed',
+    recipient: {
+      name: 'Sarah Johnson',
+      email: 'sarah.j@example.com',
+      recipientId: '5678'
+    },
+    signature: {
+      data: 'data:image/png;base64,...',
+      type: 'draw',
+      name: 'Sarah Johnson',
+      timestamp: '2023-05-29T11:45:00Z'
     }
   }
 ];
@@ -131,6 +153,13 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return documents.find(doc => doc.id === id);
   };
 
+  // Get multiple documents for a recipient by recipientId
+  const getMultipleDocumentsForRecipient = (recipientId: string) => {
+    return documents.filter(doc => 
+      doc.recipient?.recipientId === recipientId
+    );
+  };
+
   // Update a document
   const updateDocument = (id: string, updates: Partial<Document>) => {
     setDocuments(prev => 
@@ -140,18 +169,28 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   };
 
-  // Send signature link
-  const sendSignatureLink = (id: string, email: string, name: string) => {
-    updateDocument(id, {
-      status: 'sent',
-      recipient: {
-        email,
-        name
-      }
+  // Send signature link for multiple documents
+  const sendSignatureLink = (ids: string[], email: string, name: string) => {
+    // Generate a unique recipient ID
+    const recipientId = Date.now().toString();
+    
+    // Update all the documents
+    ids.forEach(id => {
+      updateDocument(id, {
+        status: 'sent',
+        recipient: {
+          email,
+          name,
+          recipientId
+        }
+      });
     });
     
     // In a real app, this would send an actual email
-    console.log(`Signature link sent to ${email} for document ${id}`);
+    console.log(`Signature link sent to ${email} for documents ${ids.join(', ')}`);
+    
+    // Return the recipient ID for use in the link
+    return recipientId;
   };
 
   // Mark document as signed
@@ -180,6 +219,7 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         error,
         addDocument,
         getDocument,
+        getMultipleDocumentsForRecipient,
         updateDocument,
         sendSignatureLink,
         markAsSigned

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Dialog, 
   DialogContent, 
@@ -20,11 +21,13 @@ import {
   Link, 
   Check, 
   Clock, 
-  Mail 
+  Mail,
+  Table
 } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import DocumentCard from '@/components/DocumentCard';
+import SignedDocumentsTable from '@/components/SignedDocumentsTable';
 import { useDocuments } from '@/context/DocumentContext';
 import { useNavigate } from 'react-router-dom';
 import { generateDocumentLink, formatDate } from '@/utils/documentUtils';
@@ -32,10 +35,11 @@ import { generateDocumentLink, formatDate } from '@/utils/documentUtils';
 const AdminDashboard = () => {
   const { documents, loading, sendSignatureLink } = useDocuments();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
   const [recipientName, setRecipientName] = useState('');
   const [recipientEmail, setRecipientEmail] = useState('');
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [showTable, setShowTable] = useState(false);
   
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -52,18 +56,35 @@ const AdminDashboard = () => {
     navigate(`/view/${id}`);
   };
   
-  const handleSendLink = (id: string) => {
-    setSelectedDocument(id);
+  const handleSelectDocument = (id: string) => {
+    if (selectedDocuments.includes(id)) {
+      setSelectedDocuments(prev => prev.filter(docId => docId !== id));
+    } else {
+      setSelectedDocuments(prev => [...prev, id]);
+    }
+  };
+  
+  const handleOpenSendDialog = () => {
+    if (selectedDocuments.length === 0) {
+      toast({
+        title: "No documents selected",
+        description: "Please select at least one document to send.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setSendDialogOpen(true);
   };
   
   const handleSubmitSendLink = () => {
-    if (!selectedDocument || !recipientEmail || !recipientName) return;
+    if (selectedDocuments.length === 0 || !recipientEmail || !recipientName) return;
     
-    sendSignatureLink(selectedDocument, recipientEmail, recipientName);
+    // Send link for multiple documents
+    const recipientId = sendSignatureLink(selectedDocuments, recipientEmail, recipientName);
     
-    // Generate a link (in a real app, this would be sent via email)
-    const link = generateDocumentLink(selectedDocument);
+    // Generate a link for the recipient (in a real app, this would be sent via email)
+    const link = `/sign/${recipientId}`;
     
     toast({
       title: "Link generated successfully",
@@ -73,11 +94,12 @@ const AdminDashboard = () => {
     // Reset the form
     setRecipientName('');
     setRecipientEmail('');
-    setSelectedDocument(null);
+    setSelectedDocuments([]);
     setSendDialogOpen(false);
     
     // Copy link to clipboard
-    navigator.clipboard.writeText(link);
+    const fullLink = window.location.origin + link;
+    navigator.clipboard.writeText(fullLink);
     
     toast({
       title: "Link copied to clipboard",
@@ -114,6 +136,24 @@ const AdminDashboard = () => {
                   className="pl-10 w-full md:w-64"
                 />
               </div>
+              
+              <Button 
+                variant="outline" 
+                onClick={() => setShowTable(!showTable)}
+                className="hidden md:flex"
+              >
+                <Table className="h-4 w-4 mr-2" />
+                {showTable ? "Card View" : "Table View"}
+              </Button>
+              
+              <Button 
+                onClick={handleOpenSendDialog}
+                disabled={selectedDocuments.length === 0}
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Send Selected
+              </Button>
+              
               <Button asChild>
                 <a href="/upload">
                   <FileText className="h-4 w-4 mr-2" />
@@ -145,6 +185,17 @@ const AdminDashboard = () => {
             ))}
           </div>
           
+          {/* View toggle for signed documents */}
+          {showTable && (
+            <div className="mb-8">
+              <h2 className="text-2xl font-semibold mb-6">Signed Documents</h2>
+              <SignedDocumentsTable 
+                documents={documents}
+                onViewDocument={handleViewDocument}
+              />
+            </div>
+          )}
+          
           {/* Documents tabs */}
           <Tabs defaultValue="all" className="w-full">
             <TabsList className="mb-6">
@@ -171,7 +222,9 @@ const AdminDashboard = () => {
                       status={doc.status}
                       recipient={doc.recipient}
                       onView={handleViewDocument}
-                      onSendLink={doc.status === 'unsigned' ? handleSendLink : undefined}
+                      isSelected={selectedDocuments.includes(doc.id)}
+                      onSelect={() => handleSelectDocument(doc.id)}
+                      selectable={doc.status === 'unsigned'}
                     />
                   ))
                 ) : (
@@ -200,7 +253,9 @@ const AdminDashboard = () => {
                       uploaded={formatDate(doc.uploaded)}
                       status={doc.status}
                       onView={handleViewDocument}
-                      onSendLink={handleSendLink}
+                      isSelected={selectedDocuments.includes(doc.id)}
+                      onSelect={() => handleSelectDocument(doc.id)}
+                      selectable={true}
                     />
                   ))
                 ) : (
@@ -272,6 +327,21 @@ const AdminDashboard = () => {
           </DialogHeader>
           
           <div className="grid gap-4 py-4">
+            <div>
+              <p className="text-sm font-medium mb-2">Selected Documents:</p>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                {selectedDocuments.map(id => {
+                  const doc = documents.find(d => d.id === id);
+                  return doc ? (
+                    <li key={id} className="flex items-center">
+                      <FileText className="h-3 w-3 mr-2" />
+                      {doc.title}
+                    </li>
+                  ) : null;
+                })}
+              </ul>
+            </div>
+            
             <div className="grid gap-2">
               <Label htmlFor="name">Recipient Name</Label>
               <Input
@@ -297,7 +367,7 @@ const AdminDashboard = () => {
           <DialogFooter className="flex flex-col gap-2 sm:flex-row">
             <Button
               onClick={handleSubmitSendLink}
-              disabled={!recipientEmail || !recipientName}
+              disabled={!recipientEmail || !recipientName || selectedDocuments.length === 0}
               className="w-full sm:w-auto"
             >
               <Link className="h-4 w-4 mr-2" />

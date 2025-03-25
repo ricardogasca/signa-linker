@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
 
 const Header = () => {
+  // Safe usage of useLocation hook
   const location = useLocation();
   
   // Only show navigation to administrative URLs if we're on an admin-related page

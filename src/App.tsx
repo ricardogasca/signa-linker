@@ -25,13 +25,13 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <ThemeProvider defaultTheme="light" storageKey="doc-signing-theme">
-        <AuthProvider>
-          <DocumentProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
+    <ThemeProvider defaultTheme="light" storageKey="doc-signing-theme">
+      <TooltipProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <DocumentProvider>
+              <Sonner />
+              <Toaster />
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />
@@ -67,11 +67,11 @@ const App = () => (
                 <Route path="/sign/:id" element={<RecipientView />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </BrowserRouter>
-          </DocumentProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </TooltipProvider>
+            </DocumentProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

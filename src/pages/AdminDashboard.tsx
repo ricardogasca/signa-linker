@@ -1,26 +1,13 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Checkbox } from '@/components/ui/checkbox';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
-} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Search, 
   FileText, 
   Link, 
   Check, 
-  Clock, 
   Mail,
   Table
 } from 'lucide-react';
@@ -30,16 +17,18 @@ import DocumentCard from '@/components/DocumentCard';
 import SignedDocumentsTable from '@/components/SignedDocumentsTable';
 import { useDocuments } from '@/context/DocumentContext';
 import { useNavigate } from 'react-router-dom';
-import { generateDocumentLink, formatDate } from '@/utils/documentUtils';
+import { formatDate } from '@/utils/documentUtils';
+import ThemeToggle from '@/components/ThemeToggle';
+import SendDocumentsDrawer from '@/components/SendDocumentsDrawer';
+import { useAuth } from '@/context/AuthContext';
 
 const AdminDashboard = () => {
   const { documents, loading, sendSignatureLink } = useDocuments();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
-  const [recipientName, setRecipientName] = useState('');
-  const [recipientEmail, setRecipientEmail] = useState('');
-  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [sendDrawerOpen, setSendDrawerOpen] = useState(false);
   const [showTable, setShowTable] = useState(false);
+  const { user } = useAuth();
   
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -64,7 +53,7 @@ const AdminDashboard = () => {
     }
   };
   
-  const handleOpenSendDialog = () => {
+  const handleOpenSendDrawer = () => {
     if (selectedDocuments.length === 0) {
       toast({
         title: "No documents selected",
@@ -74,10 +63,10 @@ const AdminDashboard = () => {
       return;
     }
     
-    setSendDialogOpen(true);
+    setSendDrawerOpen(true);
   };
   
-  const handleSubmitSendLink = () => {
+  const handleSubmitSendLink = (recipientEmail: string, recipientName: string) => {
     if (selectedDocuments.length === 0 || !recipientEmail || !recipientName) return;
     
     // Send link for multiple documents
@@ -87,15 +76,12 @@ const AdminDashboard = () => {
     const link = `/sign/${recipientId}`;
     
     toast({
-      title: "Link generated successfully",
+      title: "Signature request sent",
       description: `A signature request has been sent to ${recipientEmail}.`,
     });
     
-    // Reset the form
-    setRecipientName('');
-    setRecipientEmail('');
+    // Reset selections
     setSelectedDocuments([]);
-    setSendDialogOpen(false);
     
     // Copy link to clipboard
     const fullLink = window.location.origin + link;
@@ -117,16 +103,21 @@ const AdminDashboard = () => {
       <Header />
       
       <main className="flex-1 py-8">
-        <div className="max-container">
+        <div className="max-container px-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <div>
               <h1 className="text-3xl font-semibold mb-2">Document Dashboard</h1>
               <p className="text-muted-foreground">
                 Manage your documents and signature requests
               </p>
+              {user && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Logged in as: {user.name} ({user.email})
+                </p>
+              )}
             </div>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 flex-wrap gap-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -136,6 +127,8 @@ const AdminDashboard = () => {
                   className="pl-10 w-full md:w-64"
                 />
               </div>
+              
+              <ThemeToggle />
               
               <Button 
                 variant="outline" 
@@ -147,11 +140,11 @@ const AdminDashboard = () => {
               </Button>
               
               <Button 
-                onClick={handleOpenSendDialog}
+                onClick={handleOpenSendDrawer}
                 disabled={selectedDocuments.length === 0}
               >
                 <Mail className="h-4 w-4 mr-2" />
-                Send Selected
+                Send Selected ({selectedDocuments.length})
               </Button>
               
               <Button asChild>
@@ -168,8 +161,8 @@ const AdminDashboard = () => {
             {[
               { label: 'All Documents', count: getStatusCount('all'), icon: FileText, color: 'bg-secondary' },
               { label: 'Unsigned', count: getStatusCount('unsigned'), icon: FileText, color: 'bg-secondary' },
-              { label: 'Sent', count: getStatusCount('sent'), icon: Mail, color: 'bg-blue-100' },
-              { label: 'Signed', count: getStatusCount('signed'), icon: Check, color: 'bg-green-100' }
+              { label: 'Sent', count: getStatusCount('sent'), icon: Mail, color: 'bg-blue-100 dark:bg-blue-900' },
+              { label: 'Signed', count: getStatusCount('signed'), icon: Check, color: 'bg-green-100 dark:bg-green-900' }
             ].map((stat, index) => (
               <div key={index} className="p-4 rounded-lg border bg-card/50 animate-fade-in">
                 <div className="flex items-start justify-between">
@@ -316,66 +309,13 @@ const AdminDashboard = () => {
         </div>
       </main>
       
-      {/* Send Link Dialog */}
-      <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create Signature Link</DialogTitle>
-            <DialogDescription>
-              Generate a link to send to the recipient for signature.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div>
-              <p className="text-sm font-medium mb-2">Selected Documents:</p>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                {selectedDocuments.map(id => {
-                  const doc = documents.find(d => d.id === id);
-                  return doc ? (
-                    <li key={id} className="flex items-center">
-                      <FileText className="h-3 w-3 mr-2" />
-                      {doc.title}
-                    </li>
-                  ) : null;
-                })}
-              </ul>
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="name">Recipient Name</Label>
-              <Input
-                id="name"
-                placeholder="John Smith"
-                value={recipientName}
-                onChange={e => setRecipientName(e.target.value)}
-              />
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="email">Recipient Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="john.smith@example.com"
-                value={recipientEmail}
-                onChange={e => setRecipientEmail(e.target.value)}
-              />
-            </div>
-          </div>
-          
-          <DialogFooter className="flex flex-col gap-2 sm:flex-row">
-            <Button
-              onClick={handleSubmitSendLink}
-              disabled={!recipientEmail || !recipientName || selectedDocuments.length === 0}
-              className="w-full sm:w-auto"
-            >
-              <Link className="h-4 w-4 mr-2" />
-              Generate Link
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Send Documents Drawer */}
+      <SendDocumentsDrawer
+        isOpen={sendDrawerOpen}
+        onClose={() => setSendDrawerOpen(false)}
+        selectedDocuments={documents.filter(doc => selectedDocuments.includes(doc.id))}
+        onSendLink={handleSubmitSendLink}
+      />
       
       <Footer />
     </div>

@@ -39,53 +39,79 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const viewerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  // Set a timer to automatically enable signing after a timeout
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setReachedEnd(true);
+    }, 8000); // 8 seconds should be enough to load and display PDF
+    
+    return () => clearTimeout(timeout);
+  }, [documentUrl]);
+
   // Check when document is scrolled
   useEffect(() => {
-    // We need to monitor the iframe's content scroll position
     const checkScroll = () => {
-      // If we already detected the end, no need to check again
       if (reachedEnd) return;
       
-      try {
-        if (iframeRef.current && pdfLoaded) {
+      // If iframe is loaded, monitor its scroll position
+      if (iframeRef.current && pdfLoaded) {
+        try {
           const iframe = iframeRef.current;
-          // Try to access iframe content - might fail due to cross-origin restrictions
-          // In that case, we'll use a fallback approach
-          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+          const iframeWindow = iframe.contentWindow;
           
-          if (iframeDoc) {
-            const scrollHeight = iframeDoc.documentElement.scrollHeight;
-            const scrollTop = iframeDoc.documentElement.scrollTop;
-            const clientHeight = iframeDoc.documentElement.clientHeight;
+          if (iframeWindow) {
+            // Listen for scroll events in the iframe
+            const handleIframeScroll = () => {
+              try {
+                const doc = iframeWindow.document;
+                const scrollHeight = Math.max(
+                  doc.body.scrollHeight, 
+                  doc.documentElement.scrollHeight
+                );
+                const scrollTop = Math.max(
+                  doc.body.scrollTop, 
+                  doc.documentElement.scrollTop
+                );
+                const clientHeight = doc.documentElement.clientHeight;
+                
+                // If we're close to the end, mark as reached end
+                if (scrollTop + clientHeight >= scrollHeight - 200) {
+                  setReachedEnd(true);
+                }
+              } catch (error) {
+                console.log("Error accessing iframe scroll:", error);
+              }
+            };
             
-            // If we're near the bottom, consider it "reached end"
-            if (scrollTop + clientHeight >= scrollHeight - 100) {
-              setReachedEnd(true);
+            // Add scroll event listener to iframe
+            try {
+              iframeWindow.addEventListener('scroll', handleIframeScroll);
+              
+              // Also check initial position - PDF might be short
+              setTimeout(handleIframeScroll, 1000);
+              
+              return () => {
+                iframeWindow.removeEventListener('scroll', handleIframeScroll);
+              };
+            } catch (e) {
+              console.log("Cannot add event listener to iframe:", e);
+              // Fallback - enable signing after a delay
+              setTimeout(() => {
+                setReachedEnd(true);
+              }, 5000);
             }
           }
+        } catch (e) {
+          console.log("Cross-origin iframe limitation, using fallback approach");
+          // Fallback for cross-origin limitations
+          setTimeout(() => {
+            setReachedEnd(true);
+          }, 5000); 
         }
-      } catch (e) {
-        // Handle cross-origin iframe access errors with a fallback
-        console.log("Cross-origin iframe limitation, using fallback approach");
-        // If we can't access the iframe content, allow signing after a reasonable time
-        setTimeout(() => {
-          setReachedEnd(true);
-        }, 10000); // 10 seconds should be enough to read a document
       }
     };
     
-    // Set an interval to periodically check scroll position
-    const interval = setInterval(checkScroll, 1000); 
-    
-    // Fallback: Allow signing after 25 seconds regardless
-    const timeout = setTimeout(() => {
-      setReachedEnd(true);
-    }, 25000);
-    
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
+    checkScroll();
   }, [pdfLoaded, reachedEnd]);
   
   const scrollToBottom = () => {
@@ -96,26 +122,22 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       });
     }
     
-    // Additionally, try to scroll the iframe content
-    try {
-      if (iframeRef.current) {
-        const iframe = iframeRef.current;
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    // Try to scroll the iframe content
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      try {
+        const iframeDoc = iframeRef.current.contentWindow.document;
+        iframeDoc.body.scrollTo({
+          top: iframeDoc.body.scrollHeight,
+          behavior: 'smooth'
+        });
         
-        if (iframeDoc) {
-          iframeDoc.documentElement.scrollTo({
-            top: iframeDoc.documentElement.scrollHeight,
-            behavior: 'smooth'
-          });
-          
-          // Mark as reached end when user explicitly scrolls to bottom
-          setReachedEnd(true);
-        }
+        // Mark as reached end when user explicitly scrolls to bottom
+        setReachedEnd(true);
+      } catch (e) {
+        console.log("Could not scroll iframe content");
+        // If we can't scroll iframe, still mark as reached end
+        setReachedEnd(true);
       }
-    } catch (e) {
-      console.log("Could not scroll iframe content");
-      // If we can't scroll iframe, still mark as reached end
-      setReachedEnd(true);
     }
   };
   
@@ -174,15 +196,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
               className="w-full h-full border-none"
               style={{ minHeight: 'calc(100vh - 350px)' }}
               onLoad={() => {
+                console.log("PDF loaded in iframe");
                 setPdfLoaded(true);
-                // Set a timeout to auto-enable signing after 15 seconds 
-                // This is a fallback in case scroll detection fails
-                setTimeout(() => {
-                  if (!reachedEnd) {
-                    console.log("Enabling signing after timeout");
-                    setReachedEnd(true);
-                  }
-                }, 15000);
               }}
             />
           </CardContent>

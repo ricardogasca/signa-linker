@@ -14,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/AdminDashboard";
 import DocumentUpload from "./pages/DocumentUpload";
 import DocumentView from "./pages/DocumentView";
+import DocumentManagement from "./pages/DocumentManagement";
 import RecipientView from "./pages/RecipientView";
 import Login from "./pages/Login";
 import Forbidden from "./pages/Forbidden";
@@ -59,6 +60,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <DocumentView />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/manage" 
+                  element={
+                    <ProtectedRoute>
+                      <DocumentManagement />
                     </ProtectedRoute>
                   } 
                 />

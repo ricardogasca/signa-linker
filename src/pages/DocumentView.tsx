@@ -16,6 +16,7 @@ import DocumentViewer from '@/components/DocumentViewer';
 import { useDocuments } from '@/context/DocumentContext';
 import { formatDate } from '@/utils/documentUtils';
 import SignedDocumentsTable from '@/components/SignedDocumentsTable';
+import { createSignedPdf } from '@/utils/pdfUtils';
 
 const DocumentView = () => {
   const { id } = useParams<{ id: string }>();
@@ -69,6 +70,36 @@ const DocumentView = () => {
       });
     } finally {
       setSigningInProgress(false);
+    }
+  };
+  
+  const handleDownloadDocument = async () => {
+    if (!document) return;
+    
+    if (document.status === 'signed' && document.signature) {
+      // Download the signed version with signature
+      try {
+        await createSignedPdf(document);
+        
+        toast({
+          title: "Download started",
+          description: "Your signed document is being downloaded.",
+        });
+      } catch (error) {
+        toast({
+          title: "Download failed",
+          description: "There was an error generating your signed document.",
+          variant: "destructive"
+        });
+      }
+    } else {
+      // Just download the original document
+      const link = document.createElement('a');
+      link.href = document.url;
+      link.download = document.title;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   };
   
@@ -127,7 +158,7 @@ const DocumentView = () => {
                 </div>
               )}
               
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={handleDownloadDocument}>
                 <Download className="h-4 w-4 mr-2" />
                 Download
               </Button>

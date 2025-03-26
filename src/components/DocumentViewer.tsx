@@ -48,71 +48,59 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return () => clearTimeout(timeout);
   }, [documentUrl]);
 
-  // Check when document is scrolled
+  // Check for PDF load success
   useEffect(() => {
-    const checkScroll = () => {
-      if (reachedEnd) return;
-      
-      // If iframe is loaded, monitor its scroll position
-      if (iframeRef.current && pdfLoaded) {
-        try {
-          const iframe = iframeRef.current;
-          const iframeWindow = iframe.contentWindow;
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const checkIframeLoaded = () => {
+      try {
+        // If we can access the iframe content, it means the PDF has loaded
+        if (iframe.contentWindow?.document) {
+          console.log("PDF iframe content accessed successfully");
+          setPdfLoaded(true);
           
-          if (iframeWindow) {
-            // Listen for scroll events in the iframe
-            const handleIframeScroll = () => {
-              try {
-                const doc = iframeWindow.document;
-                const scrollHeight = Math.max(
-                  doc.body.scrollHeight, 
-                  doc.documentElement.scrollHeight
-                );
-                const scrollTop = Math.max(
-                  doc.body.scrollTop, 
-                  doc.documentElement.scrollTop
-                );
-                const clientHeight = doc.documentElement.clientHeight;
-                
-                // If we're close to the end, mark as reached end
-                if (scrollTop + clientHeight >= scrollHeight - 200) {
-                  setReachedEnd(true);
-                }
-              } catch (error) {
-                console.log("Error accessing iframe scroll:", error);
-              }
-            };
-            
-            // Add scroll event listener to iframe
-            try {
-              iframeWindow.addEventListener('scroll', handleIframeScroll);
-              
-              // Also check initial position - PDF might be short
-              setTimeout(handleIframeScroll, 1000);
-              
-              return () => {
-                iframeWindow.removeEventListener('scroll', handleIframeScroll);
-              };
-            } catch (e) {
-              console.log("Cannot add event listener to iframe:", e);
-              // Fallback - enable signing after a delay
-              setTimeout(() => {
-                setReachedEnd(true);
-              }, 5000);
-            }
+          // For security reasons, many browsers will block cross-origin iframe access
+          // We'll use a fallback approach if we can't access the iframe content directly
+          try {
+            const iframeDoc = iframe.contentWindow.document;
+            // Try to add a load event listener
+            iframeDoc.addEventListener('scroll', () => {
+              // If we got here, we can access the iframe content
+              console.log("Iframe scroll event registered");
+            });
+          } catch (e) {
+            console.log("Limited iframe access due to cross-origin policy:", e);
+            // Use fallback: just mark as reached end after additional delay
+            setTimeout(() => setReachedEnd(true), 3000);
           }
-        } catch (e) {
-          console.log("Cross-origin iframe limitation, using fallback approach");
-          // Fallback for cross-origin limitations
-          setTimeout(() => {
-            setReachedEnd(true);
-          }, 5000); 
         }
+      } catch (e) {
+        console.log("Cannot access iframe content:", e);
       }
     };
-    
-    checkScroll();
-  }, [pdfLoaded, reachedEnd]);
+
+    // Check if PDF is loaded
+    iframe.onload = () => {
+      console.log("PDF iframe onload triggered");
+      setPdfLoaded(true);
+      checkIframeLoaded();
+      
+      // Fallback: Enable signing after a short delay
+      setTimeout(() => {
+        setReachedEnd(true);
+      }, 3000);
+    };
+
+    // Fallback for browsers where onload doesn't work properly
+    setTimeout(checkIframeLoaded, 2000);
+
+    return () => {
+      if (iframe) {
+        iframe.onload = null;
+      }
+    };
+  }, [iframeRef.current]);
   
   const scrollToBottom = () => {
     if (viewerRef.current) {

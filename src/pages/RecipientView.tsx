@@ -11,6 +11,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { 
   Card,
   CardContent, 
@@ -22,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DocumentViewer from '@/components/DocumentViewer';
 import { useDocuments } from '@/context/DocumentContext';
 import { formatDate } from '@/utils/documentUtils';
+import { createSignedPdf } from '@/utils/pdfUtils';
 
 const RecipientView = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,7 +32,7 @@ const RecipientView = () => {
   const [activeTab, setActiveTab] = useState<string>('0');
   const { getMultipleDocumentsForRecipient, updateDocument, markAsSigned } = useDocuments();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
   
   // Get all documents for this recipient link
   const documents = id ? getMultipleDocumentsForRecipient(id) : [];
@@ -71,9 +73,8 @@ const RecipientView = () => {
       // Update document with signature
       markAsSigned(currentDoc.id, signatureData, signatureType, name);
       
-      toast({
-        title: "Document signed successfully",
-        description: "Your signature has been securely recorded.",
+      toast.success("Document signed successfully", {
+        description: "Your signature has been securely recorded."
       });
       
       // If there are more documents to sign, move to the next one
@@ -81,19 +82,26 @@ const RecipientView = () => {
         const nextTabIndex = (parseInt(activeTab) + 1).toString();
         setActiveTab(nextTabIndex);
         
-        toast({
-          title: "Please sign the next document",
-          description: `${documents.length - parseInt(activeTab) - 1} documents remaining.`,
+        toast("Please sign the next document", {
+          description: `${documents.length - parseInt(activeTab) - 1} documents remaining.`
         });
       }
     } catch (error) {
-      toast({
-        title: "Signing failed",
-        description: "There was an error processing your signature.",
-        variant: "destructive"
+      toast.error("Signing failed", {
+        description: "There was an error processing your signature."
       });
     } finally {
       setSigningInProgress(false);
+    }
+  };
+
+  const handleDownloadSigned = (doc) => {
+    if (doc.status === 'signed' && doc.signature) {
+      createSignedPdf(doc);
+    } else {
+      toast.error("Cannot download signed version", {
+        description: "This document has not been signed yet."
+      });
     }
   };
   
@@ -183,6 +191,18 @@ const RecipientView = () => {
                           </p>
                         )}
                       </CardContent>
+                      {doc.status === 'signed' && (
+                        <CardFooter className="pt-0">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDownloadSigned(doc)}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download Signed PDF
+                          </Button>
+                        </CardFooter>
+                      )}
                     </Card>
                   </TabsContent>
                 ))}

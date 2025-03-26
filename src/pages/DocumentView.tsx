@@ -10,6 +10,7 @@ import {
   CheckSquare
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import DocumentViewer from '@/components/DocumentViewer';
@@ -24,7 +25,7 @@ const DocumentView = () => {
   const [signingInProgress, setSigningInProgress] = useState(false);
   const { getDocument, updateDocument, markAsSigned, documents } = useDocuments();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
   
   const document = id ? getDocument(id) : undefined;
   
@@ -58,15 +59,12 @@ const DocumentView = () => {
       // Update document with signature
       markAsSigned(id, signatureData, signatureType, name);
       
-      toast({
-        title: "Document signed successfully",
-        description: "Your signature has been securely recorded.",
+      toast.success("Document signed successfully", {
+        description: "Your signature has been securely recorded."
       });
     } catch (error) {
-      toast({
-        title: "Signing failed",
-        description: "There was an error processing your signature.",
-        variant: "destructive"
+      toast.error("Signing failed", {
+        description: "There was an error processing your signature."
       });
     } finally {
       setSigningInProgress(false);
@@ -80,16 +78,9 @@ const DocumentView = () => {
       // Download the signed version with signature
       try {
         await createSignedPdf(document);
-        
-        toast({
-          title: "Download started",
-          description: "Your signed document is being downloaded.",
-        });
       } catch (error) {
-        toast({
-          title: "Download failed",
-          description: "There was an error generating your signed document.",
-          variant: "destructive"
+        toast.error("Download failed", {
+          description: "There was an error generating your signed document."
         });
       }
     } else {
@@ -160,7 +151,7 @@ const DocumentView = () => {
               
               <Button variant="outline" size="sm" onClick={handleDownloadDocument}>
                 <Download className="h-4 w-4 mr-2" />
-                Download
+                Download {document.status === 'signed' ? 'Signed PDF' : 'Document'}
               </Button>
             </div>
           </div>

@@ -27,7 +27,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Tabs,
@@ -35,19 +34,13 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/utils/documentUtils';
+import { toast } from 'sonner';
 import { 
   Users, 
   FileText, 
@@ -55,16 +48,18 @@ import {
   Plus, 
   Clock, 
   Search,
-  UserPlus,
   Mail,
   CheckCircle,
   XCircle,
   Eye,
-  RefreshCw
+  RefreshCw,
+  Download,
+  UserPlus
 } from 'lucide-react';
+import { createSignedPdf } from '@/utils/pdfUtils';
 
 const DocumentManagement = () => {
-  const { documents, sendSignatureLink } = useDocuments();
+  const { documents, sendSignatureLink, getDocument } = useDocuments();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -73,9 +68,10 @@ const DocumentManagement = () => {
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [selectedTab, setSelectedTab] = useState('documents');
   const [recipients, setRecipients] = useState<{[id: string]: { name: string, email: string, docs: string[] }}>({});
+  const [sharedLinkId, setSharedLinkId] = useState<string | null>(null);
 
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
 
   // Extract unique recipients from documents
   useEffect(() => {
@@ -114,10 +110,8 @@ const DocumentManagement = () => {
 
   const handleOpenSendDialog = () => {
     if (selectedDocuments.length === 0) {
-      toast({
-        title: "No documents selected",
-        description: "Please select at least one document to send.",
-        variant: "destructive"
+      toast.error("No documents selected", {
+        description: "Please select at least one document to send."
       });
       return;
     }
@@ -128,10 +122,8 @@ const DocumentManagement = () => {
 
   const handleSendDocuments = () => {
     if (!recipientEmail || !recipientName || selectedDocumentIds.length === 0) {
-      toast({
-        title: "Missing information",
-        description: "Please provide recipient information and select documents.",
-        variant: "destructive"
+      toast.error("Missing information", {
+        description: "Please provide recipient information and select documents."
       });
       return;
     }
@@ -146,9 +138,11 @@ const DocumentManagement = () => {
     // Copy link to clipboard
     navigator.clipboard.writeText(fullLink);
     
-    toast({
-      title: "Documents sent for signature",
-      description: `A signature request has been sent to ${recipientEmail}. Link copied to clipboard.`,
+    // Set the shared link ID for display
+    setSharedLinkId(recipientId);
+    
+    toast.success("Documents sent for signature", {
+      description: `A signature request has been sent to ${recipientEmail}. Link copied to clipboard.`
     });
 
     // Reset form
@@ -163,10 +157,20 @@ const DocumentManagement = () => {
     // Resend the same documents to the recipient
     sendSignatureLink(docIds, email, name);
     
-    toast({
-      title: "Documents resent for signature",
-      description: `The signature request has been resent to ${email}.`,
+    toast.success("Documents resent for signature", {
+      description: `The signature request has been resent to ${email}.`
     });
+  };
+
+  const handleDownloadSigned = (documentId: string) => {
+    const doc = getDocument(documentId);
+    if (doc && doc.status === 'signed' && doc.signature) {
+      createSignedPdf(doc);
+    } else {
+      toast.error("Cannot download", {
+        description: "This document is not signed yet."
+      });
+    }
   };
 
   const getDocumentsByStatus = (status: 'unsigned' | 'sent' | 'viewed' | 'signed') => {
@@ -214,6 +218,37 @@ const DocumentManagement = () => {
               </Button>
             </div>
           </div>
+
+          {sharedLinkId && (
+            <Card className="mb-6 border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <div>
+                      <h3 className="font-medium">Documents shared successfully</h3>
+                      <p className="text-sm text-muted-foreground">Share this link with the recipient:</p>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => {
+                      const link = `/sign/${sharedLinkId}`;
+                      const fullLink = window.location.origin + link;
+                      navigator.clipboard.writeText(fullLink);
+                      toast.success("Link copied to clipboard");
+                    }}
+                  >
+                    Copy Link
+                  </Button>
+                </div>
+                <div className="mt-2 p-2 bg-background rounded border text-sm font-mono truncate">
+                  {window.location.origin}/sign/{sharedLinkId}
+                </div>
+              </CardContent>
+            </Card>
+          )}
           
           <Tabs 
             defaultValue="documents" 
@@ -265,7 +300,12 @@ const DocumentManagement = () => {
                                 />
                               )}
                             </TableCell>
-                            <TableCell className="font-medium">{doc.title}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center">
+                                <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+                                {doc.title}
+                              </div>
+                            </TableCell>
                             <TableCell>{formatDate(doc.uploaded)}</TableCell>
                             <TableCell>
                               {doc.status === 'unsigned' && <span className="text-slate-500">Unsigned</span>}
@@ -274,35 +314,55 @@ const DocumentManagement = () => {
                               {doc.status === 'signed' && <span className="text-green-500">Signed</span>}
                             </TableCell>
                             <TableCell>
-                              {doc.recipient ? doc.recipient.name : '-'}
+                              {doc.recipient ? (
+                                <div className="flex items-center">
+                                  <UserPlus className="h-3 w-3 mr-1 text-muted-foreground" />
+                                  {doc.recipient.name}
+                                </div>
+                              ) : '-'}
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => navigate(`/view/${doc.id}`)}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              
-                              {doc.status === 'sent' && (
+                              <div className="flex justify-end items-center space-x-1">
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => {
-                                    if (doc.recipient) {
-                                      handleResendToRecipient(
-                                        doc.recipient.recipientId || '',
-                                        doc.recipient.name,
-                                        doc.recipient.email,
-                                        [doc.id]
-                                      );
-                                    }
-                                  }}
+                                  onClick={() => navigate(`/view/${doc.id}`)}
+                                  title="View document"
                                 >
-                                  <RefreshCw className="h-4 w-4" />
+                                  <Eye className="h-4 w-4" />
                                 </Button>
-                              )}
+                                
+                                {doc.status === 'sent' && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      if (doc.recipient) {
+                                        handleResendToRecipient(
+                                          doc.recipient.recipientId || '',
+                                          doc.recipient.name,
+                                          doc.recipient.email,
+                                          [doc.id]
+                                        );
+                                      }
+                                    }}
+                                    title="Resend signature request"
+                                  >
+                                    <RefreshCw className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                
+                                {doc.status === 'signed' && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleDownloadSigned(doc.id)}
+                                    title="Download signed document"
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))
@@ -372,7 +432,12 @@ const DocumentManagement = () => {
                           
                           return (
                             <TableRow key={recipientId}>
-                              <TableCell className="font-medium">{recipient.name}</TableCell>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center">
+                                  <UserPlus className="h-4 w-4 mr-2 text-muted-foreground" />
+                                  {recipient.name}
+                                </div>
+                              </TableCell>
                               <TableCell>{recipient.email}</TableCell>
                               <TableCell>{recipientDocs.length} document(s)</TableCell>
                               <TableCell>
@@ -389,33 +454,36 @@ const DocumentManagement = () => {
                                 )}
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    handleResendToRecipient(
-                                      recipientId,
-                                      recipient.name,
-                                      recipient.email,
-                                      recipient.docs
-                                    );
-                                  }}
-                                  className="mr-2"
-                                >
-                                  <RefreshCw className="h-4 w-4 mr-1" />
-                                  Resend
-                                </Button>
-                                
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    navigate(`/sign/${recipientId}`);
-                                  }}
-                                >
-                                  <Eye className="h-4 w-4 mr-1" />
-                                  View
-                                </Button>
+                                <div className="flex justify-end space-x-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      handleResendToRecipient(
+                                        recipientId,
+                                        recipient.name,
+                                        recipient.email,
+                                        recipient.docs
+                                      );
+                                    }}
+                                    title="Resend all documents"
+                                  >
+                                    <RefreshCw className="h-4 w-4 mr-1" />
+                                    Resend
+                                  </Button>
+                                  
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      navigate(`/sign/${recipientId}`);
+                                    }}
+                                    title="View recipient's signing page"
+                                  >
+                                    <Eye className="h-4 w-4 mr-1" />
+                                    View
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
